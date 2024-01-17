@@ -26,6 +26,8 @@ urlpatterns = [
  path('retake-quiz/',views.retake_a_quiz,name='retake_a_quiz'),
  path('add-comment/',views.add_comment_to_quiz,name='add_comment'),
  path('check-timer/<str:quiz_id>/',views.quiz_timer,name='check-timer'),
+ path('saved-quiz/',views.SavedQuizAPI.as_view(),name='saved_quiz'),
+ path('ratings/',views.RatingsAPI.as_view(),name='ratings'),
 
 
  #Communities

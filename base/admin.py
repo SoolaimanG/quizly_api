@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, ForgetPassword, EmailVerification, StudentAccount, TeachersAccount, Category, Logs, Quiz, Question, GermanOptions, ObjectiveOptions, Comments, AttemptedQuizOfUser, AnonymousUser, AttemptedQuizByAnonymousUser, QuizAccessToken, ScoreBoard, UploadImage
+from .models import User, ForgetPassword, EmailVerification, StudentAccount, TeachersAccount, Category, Logs, Quiz, Question, GermanOptions, ObjectiveOptions, Comments, AttemptedQuizOfUser, AnonymousUser, AttemptedQuizByAnonymousUser, QuizAccessToken, ScoreBoard, UploadImage, SavedQuiz, Ratings
 
 # Register your models here.
 
@@ -21,3 +21,5 @@ admin.site.register(AttemptedQuizByAnonymousUser)
 admin.site.register(QuizAccessToken)
 admin.site.register(ScoreBoard)
 admin.site.register(UploadImage)
+admin.site.register(SavedQuiz)
+admin.site.register(Ratings)

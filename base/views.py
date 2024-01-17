@@ -7,7 +7,7 @@ import os
 import uuid
 import requests
 
-from .models import User, ForgetPassword, EmailVerification, StudentAccount, TeachersAccount,Category,Question,Quiz, Comments, AttemptedQuizOfUser, AnonymousUser, AttemptedQuizByAnonymousUser, ScoreBoard
+from .models import User, ForgetPassword, EmailVerification, StudentAccount, TeachersAccount,Category,Question,Quiz, Comments, AttemptedQuizOfUser, AnonymousUser, AttemptedQuizByAnonymousUser, ScoreBoard, SavedQuiz, Ratings
 from rest_framework.response import Response
 from rest_framework.decorators import permission_classes,api_view
 from rest_framework.permissions import IsAuthenticated
@@ -1143,6 +1143,111 @@ def get_quiz_details(request, id):
         
     except Exception as e:
         return Response({'data':{},'message':str(e)},status=HTTP_500_INTERNAL_SERVER_ERROR)
+
+@permission_classes([IsAuthenticated])
+class SavedQuizAPI(APIView):
+ def get(self, request):
+    try:
+        quiz_id = request.query_params['quiz_id']
+        user:User = request.user
+        try:
+            quiz = get_object_or_404(Quiz, id=quiz_id)
+        except Quiz.DoesNotExist:
+            return Response({'data':{},"message":"Quiz Does not exists."},status=HTTP_404_NOT_FOUND)
+        
+        is_saved = SavedQuiz.objects.filter(quiz=quiz, user=user).exists()
+
+        return Response({'data':{'is_saved': is_saved},"message":"OK"}, status=HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'data':{},"message":str(e)},status=HTTP_500_INTERNAL_SERVER_ERROR)
+
+# This Function Saved and Unsave
+ def post(self, request):
+    try:
+        data = request.data
+
+        user:User = request.user
+        quiz_id = data['quiz_id']
+
+        try:
+            quiz = get_object_or_404(Quiz, id=quiz_id)
+        except Quiz.DoesNotExist:
+            return Response({'data':{},"message":"Quiz Does not exists."},status=HTTP_404_NOT_FOUND)
+        
+
+
+        saved_quiz, created = SavedQuiz.objects.get_or_create(quiz=quiz, user=user, defaults={
+            "quiz": quiz,
+            "user": user
+        })
+
+        if not created:
+            saved_quiz.delete()
+
+        message = "Quiz Saved" if created else "Quiz Removed From Saved"
+
+        return Response({'data':{},"message":message},status=HTTP_200_OK)
+
+    except Exception as e:
+        print(e)
+        return Response({'data':{},"message": str(e)},status=HTTP_500_INTERNAL_SERVER_ERROR)
+
+@permission_classes([IsAuthenticated])
+class RatingsAPI(APIView):
+    def get(self, request):
+        try:
+            user = request.user
+            data = request.query_params
+            action = data.get('action')
+            obj_id = data.get('id')
+
+            if action not in [Ratings.RatingsType.Quiz, Ratings.RatingsType.TEACHER]:
+                return Response({'data': {}, 'message': 'Invalid action call'}, status=HTTP_400_BAD_REQUEST)
+
+            if action == Ratings.RatingsType.Quiz:
+                data_exists = Ratings.objects.filter(quiz__id=obj_id, user=user).exists()
+            else:
+                data_exists = Ratings.objects.filter(teacher__id=obj_id, user=user).exists()
+
+            return Response({'data': data_exists, 'message': 'OK'}, status=HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response({'data': {}, 'message': str(e)}, status=HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def post(self, request):
+        try:
+            data = request.data
+            obj_id = data.get('id')
+            action = data.get('action')
+
+            user = request.user
+
+            if action not in [Ratings.RatingsType.Quiz, Ratings.RatingsType.TEACHER]:
+                return Response({'data': {}, 'message': 'Invalid action call'}, status=HTTP_400_BAD_REQUEST)
+
+            if action == Ratings.RatingsType.Quiz:
+                obj = get_object_or_404(Quiz, id=obj_id)
+            else:
+                obj = get_object_or_404(TeachersAccount, id=obj_id)
+
+            rating, created = Ratings.objects.get_or_create(
+                user=user,
+                defaults={'type': action, 'quiz': obj} if action == Ratings.RatingsType.Quiz
+                        else {'type': action, 'teacher': obj}
+            )
+
+            if not created:
+                rating.delete()
+
+            message = f"{obj._meta.verbose_name.capitalize()} rated" if created else f"{obj._meta.verbose_name.capitalize()} has been unrated"
+
+            return Response({'data': {}, 'message': message}, status=HTTP_200_OK)
+
+        except Exception as e:
+            return Response({'data': {}, 'message': str(e)}, status=HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 #import requests
 #

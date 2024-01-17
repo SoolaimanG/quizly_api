@@ -357,3 +357,41 @@ class UploadImage(models.Model):
 
    def __str__(self):
       return self.image.url
+   
+class SavedQuiz(models.Model):
+   quiz = models.ForeignKey("base.Quiz", on_delete=models.CASCADE)
+   user = models.ForeignKey("base.User", on_delete=models.CASCADE)
+
+   created_at = models.DateTimeField(auto_now_add=True)
+   updated_at = models.DateTimeField(auto_now=True)
+
+
+   def __str__(self):
+      return self.quiz.title
+
+class Ratings(models.Model):
+   
+   class RatingsType(models.TextChoices):
+      TEACHER = 'teacher', _('TEACHER')
+      Quiz = 'quiz', _('QUIZ')
+
+   teacher = models.ForeignKey(TeachersAccount, on_delete=models.CASCADE, null=True, blank=True)
+   quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, null=True, blank=True)
+   user = models.ForeignKey(User, on_delete=models.CASCADE)
+   type = models.TextField(choices=RatingsType.choices, default=RatingsType.Quiz, max_length=10)
+
+   def checks(self):
+      if self.type == Ratings.RatingsType.Quiz and not self.quiz:
+         raise ValidationError("Quiz is required.")
+      
+      if self.type == Ratings.RatingsType.TEACHER and not self.teacher:
+         raise ValidationError("Teacher to rate is required.")
+      
+   def save(self, *arg, **kwarg):
+      self.checks()
+      super().save(*arg, **kwarg)
+
+
+
+
+
