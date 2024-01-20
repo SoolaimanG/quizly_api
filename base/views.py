@@ -7,7 +7,7 @@ import os
 import uuid
 import requests
 
-from .models import User, ForgetPassword, EmailVerification, StudentAccount, TeachersAccount,Category,Question,Quiz, Comments, AttemptedQuizOfUser, AnonymousUser, AttemptedQuizByAnonymousUser, ScoreBoard, SavedQuiz, Ratings
+from .models import User, ForgetPassword, EmailVerification, StudentAccount, TeachersAccount,Category,Question,Quiz, Comments, AttemptedQuizOfUser, AnonymousUser, AttemptedQuizByAnonymousUser, ScoreBoard, SavedQuiz, Ratings, QuizReports
 from rest_framework.response import Response
 from rest_framework.decorators import permission_classes,api_view
 from rest_framework.permissions import IsAuthenticated
@@ -760,6 +760,56 @@ def get_question(request, id: str):
  except Exception as e:
   return Response({'data':{},'message':str(e)},status=HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['GET'])
+def get_quiz_questions(request, id: str):
+    try:
+        user: User = request.user
+        anonymous_id = request.query_params.get('anonymous_id', '')
+        # Make sure the quiz user wants to get its question exist
+        try:
+            quiz = get_object_or_404(Quiz, id=id)
+        except Quiz.DoesNotExist:
+            return Response({'data':{},"message":"Quiz with this ID does not exists."},status=HTTP_404_NOT_FOUND)
+        
+        
+        # Locate the user tracker for that quiz, this shows that user has click the start button
+        if user.is_authenticated:
+            tracker = AttemptedQuizOfUser.objects.filter(quiz=quiz, attempted_by__user=user)
+            quiz_tracker = tracker.exists()
+            questions_answered = tracker.first().questions_answered_by_student.count()
+        else:
+            tracker = AttemptedQuizByAnonymousUser.objects.filter(quiz=quiz, attempted_by__anonymous_id=anonymous_id)
+            quiz_tracker = tracker.exists()
+            questions_answered = tracker.count()
+
+
+        
+        if not quiz_tracker:
+            return Response({'data':{},"message":'Unable to locate your tracker, Please Click on start quiz button'},status=HTTP_404_NOT_FOUND)
+        
+        total_questions = Question.objects.filter(quiz_id=quiz).count()
+        
+        id_limits = 5 if not user.is_authenticated else total_questions
+        
+        # Get all the questions related to this Quiz [IDs]
+        questions_ids = Question.objects.filter(quiz_id=quiz).values_list('id', flat=True)[:id_limits]
+
+        data = UUIDListSerializer(data={'uuids': questions_ids})
+
+        if not data.is_valid():
+            return Response({'data':{},"message": str(data.error_messages)}, status=HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        questions_remaining = False
+        
+        if not user.is_authenticated: questions_remaining = total_questions > id_limits
+        
+        
+        return Response({'data':{'ids': data.data['uuids'], 'questions_remaining': questions_remaining, 'questions_answered': questions_answered },'message':'OK'},status=HTTP_200_OK)
+
+
+    except Exception as e:
+        return Response({'data':{},"message":str(e)}, status=HTTP_500_INTERNAL_SERVER_ERROR)
+
 @api_view(['POST'])
 def mark_user_question(request):
     from .helpers import check_quiz_time
@@ -1141,6 +1191,59 @@ def get_quiz_details(request, id):
 
         return Response({'data':data.data, 'message':'OK'},status=HTTP_200_OK)
         
+    except Exception as e:
+        return Response({'data':{},'message':str(e)},status=HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def report_question(request):
+    try:
+        data = request.data
+
+        quiz_id = data['quiz_id']
+        question_id = data['question_id']
+        issue = data['issue']
+
+        user:User = request.user
+
+        try:
+            quiz = get_object_or_404(Quiz, id=quiz_id)
+            question = get_object_or_404(Question, id=question_id)
+        except Quiz.DoesNotExist or Question.DoesNotExist:
+            return Response({'data':{},'message':''}, status=HTTP_404_NOT_FOUND)
+        
+        
+        # Check if user has already reported this question
+        if QuizReports.objects.filter(quiz=quiz, question=question, user=user).exists():
+            return Response({'data':{},'message':'You already reported this Question'},status=HTTP_409_CONFLICT)
+
+        
+        report = QuizReports(
+            user=user,
+            quiz=quiz,
+            question=question,
+            issue=issue
+        )
+
+        report.save()
+
+        return Response({'data':{},"message":"This question has been reported"},status=HTTP_200_OK)
+
+
+    except Exception as e:
+        return Response({'data':{},'message': str(e)}, status=HTTP_500_INTERNAL_SERVER_ERROR)
+
+def questions_attempted(request, id:str):
+    try:
+        user: User = request.user
+
+        try:
+            quiz = get_object_or_404(Quiz, id=id)
+        except Quiz.DoesNotExist:
+            return Response({'data':{},'message':'Could not find the related quiz'}, status=HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Check if the user is authenticated to know the tracker to check
+
     except Exception as e:
         return Response({'data':{},'message':str(e)},status=HTTP_500_INTERNAL_SERVER_ERROR)
 

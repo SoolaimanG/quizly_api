@@ -391,6 +391,15 @@ class Ratings(models.Model):
       self.checks()
       super().save(*arg, **kwarg)
 
+class QuizReports(models.Model):
+   user = models.ForeignKey(User, on_delete=models.CASCADE)
+   issue = models.TextField(max_length=250)
+   quiz= models.ForeignKey(Quiz, on_delete=models.CASCADE)
+   question = models.ForeignKey(Question, on_delete=models.CASCADE)
+   created_at = models.DateTimeField(auto_now_add=True)
+
+   def __str__(self):
+      return self.issue[:50]
 
 
 
