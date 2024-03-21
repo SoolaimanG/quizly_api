@@ -28,7 +28,12 @@ urlpatterns = [
  path('add-comment/',views.add_comment_to_quiz,name='add_comment'),
  path('check-timer/<str:quiz_id>/',views.quiz_timer,name='check-timer'),
  path('saved-quiz/',views.SavedQuizAPI.as_view(),name='saved_quiz'),
+ path('ratings/',views.RatingsAPI.as_view(),name='ratings'),
+ path('comment/',views.CommentAPI.as_view(),name='comment'),
  path('report-question/',views.report_question,name='report_question'),
+ path('get_related_quiz/',views.get_quiz_related_to_user,name='get_related_quiz'),
+ path('notifications/', views.NotificationApi.as_view(),name='notification_api'),
+ path('feature-wait-list/', views.FeatureWaitListAPI.as_view(), name='features_wait_list'),
  
  
  #Authentication Required Route

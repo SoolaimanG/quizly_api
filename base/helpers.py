@@ -5,15 +5,16 @@ from quizly_api import settings
 from django.core.exceptions import ValidationError
 from difflib import SequenceMatcher
 from django.db.models import Q, Count
-from math import floor
+from math import ceil
 from django.utils import timezone
 from typing import Dict, Any, List
+from string import ascii_letters
     
 
 def string_mistakes(a, b):
     return SequenceMatcher(None, a, b).ratio()
 
-def send_email(subject: str, body: str, recipients: [str]):
+def send_email(subject: str, body: str, recipients: List[str]):
     try:
         email = EmailMessage(
             subject,
@@ -48,9 +49,11 @@ def mark_question_by_type(user_answer: str | List[str], question: Any, quiz_trac
     
     def add_xp():
         quiz_tracker.XP += question.question_point
+        quiz_tracker.save()
         
     def reduce_xp():
         quiz_tracker.XP = max(quiz_tracker.XP - question.question_point, 0)
+        quiz_tracker.save()
     
     # Evaluate the user's answer
     evaluation_result = evaluate_user_answer(question, user_answer,)
@@ -65,8 +68,6 @@ def mark_question_by_type(user_answer: str | List[str], question: Any, quiz_trac
     quiz_tracker.questions_answered_by_student.add(question)
     quiz_tracker.answers.append({'question': question.question_body, 'user_answer': user_answer, 'question_id': str(question.id)})
     quiz_tracker.save()  # Save the update or record
-
-    mark_as_completed(quiz_tracker) 
         
 def mark_quiz(question_id:str, user_answer:str, quiz_tracker:Any | Any, auth: bool):
     from base.models import Question, Quiz
@@ -83,8 +84,9 @@ def mark_quiz(question_id:str, user_answer:str, quiz_tracker:Any | Any, auth: bo
         try:
     
             #This means mark on going to next question
-            if quiz.result_display_type  == Quiz.ResultDisplayType.ON_COMPLETE:
+            if quiz.result_display_type  == Quiz.ResultDisplayType.ON_COMPLETE or quiz.result_display_type == Quiz.ResultDisplayType.ON_SUBMIT:
                 mark_question_by_type(user_answer=user_answer,question=question, quiz_tracker=quiz_tracker)
+
     
             #Do not mark save for the teacher to come and mark
             if quiz.result_display_type == Quiz.ResultDisplayType.MARK_BY_TEACHER:
@@ -120,12 +122,8 @@ def get_trending_quiz(size: int):
     return trending_quiz
 
 def mark_as_completed(quiz_tracker: Any):
-    from base.models import Question
-    question_related = Question.objects.filter(quiz_id=quiz_tracker.quiz).count()
-    question_answered = quiz_tracker.questions_answered_by_student.count()
     
-
-    quiz_tracker.is_completed = question_answered == question_related
+    quiz_tracker.is_completed = True
     quiz_tracker.save()
         
     return quiz_tracker.is_completed
@@ -217,15 +215,16 @@ def evaluate_user_answer(question: Any, user_answer: str) -> Dict[str, Any]:
     elif question_type == question.QuestionTypes.TRUE_OR_FALSE:
         result['correct_answer'] = str(question.answer_is_true).lower()
         result['is_correct'] = str(question.answer_is_true).lower() == str(user_answer).lower()
-        print("error 3")
+
 
     elif question_type == question.QuestionTypes.GERMAN:
-        if bool(question.mistakes_to_ignore) and floor(string_mistakes(user_answer, question.answer)) > question.mistakes_to_ignore:
+        if bool(question.mistakes_to_ignore) and ceil(string_mistakes(user_answer, question.answer)) > question.mistakes_to_ignore:
             result['is_correct'] = False
+        elif question.is_strict:
+            result['is_correct'] = question.answer.lower().strip() == str(user_answer).lower().strip()
         else:
-            print("error 1")
-            result['is_correct'] = not bool(question.mistakes_to_ignore) and question.answer.lower().strip() == str(user_answer).lower().strip()
-            print("error 2")
+            result['is_correct'] = True
+    
 
     elif question_type == question.QuestionTypes.MULTIPLE_CHOICES:
         result['is_correct'] = all(choice in user_answer for choice in correct_options)
@@ -332,6 +331,30 @@ def check_quiz_time(quiz: str, anonymous_id: str, user: Any):
     
     return remaining_time
 
+def notification_helper(user, message: str, type:str, path: str, user_requesting):
+    from .models import Notifications
+    # user = user
+    # user_requesting: User = user_requesting
 
+    if type not in [Notifications.NotificationType.ACHIEVEMENT, Notifications.NotificationType.COMMUNITY_REQUEST, Notifications.NotificationType.DEFAULT, Notifications.NotificationType.NEW_QUIZ_ALERT]:
+        raise ValueError('Notification type does not exist')
+
+    notification = Notifications(
+        user=user,
+        message=message or '',
+        path=path or None,
+        notification_type=type,
+        user_requesting=user_requesting or None
+    )
+
+
+    notification.save()
+    
+def generate_random_letters(length: int):
+    letters = ascii_letters
+    randoms = random.choices(letters, k=length)
+    generated_string = ''.join(randoms)
+    
+    return generated_string
 
 

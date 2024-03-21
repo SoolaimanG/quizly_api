@@ -38,6 +38,7 @@ INSTALLED_APPS = [
 
     'base',
     'communites',
+    'surveys'
 ]
 
 REST_FRAMEWORK = {
@@ -54,8 +55,8 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
 'ACCESS_TOKEN_LIFETIME': timedelta(hours=5),
 'REFRESH_TOKEN_LIFETIME': timedelta(days=50),
-'ROTATE_REFRESH_TOKENS': False,
-'BLACKLIST_AFTER_ROTATION': False,
+'ROTATE_REFRESH_TOKENS': True,
+'BLACKLIST_AFTER_ROTATION': True,
 
 'ALGORITHM': 'HS256',
 'SIGNING_KEY': SECRET_KEY,
@@ -89,12 +90,12 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:8000",
-]
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:5173",
+#     "http://127.0.0.1:8000",
+# ]
 
-#CORS_ORIGIN_ALLOW_ALL = True
+CORS_ORIGIN_ALLOW_ALL = True
 
 CORS_ALLOW_CREDENTIALS = True
 

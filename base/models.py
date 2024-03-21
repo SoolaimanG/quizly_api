@@ -9,7 +9,8 @@ from django.utils.translation import gettext as _
 from django.db.models import Q
 from django.core.exceptions import ValidationError
 
-from .helpers import upload_to
+
+from .helpers import upload_to, send_email
 
 
 
@@ -217,7 +218,13 @@ class Question(models.Model):
     # # Find all the related questions 
     questions = Question.objects.filter(quiz_id__id=self.quiz_id.id).count()
 
-    self.question_number = questions + 1 #Automatically count the numbers of question to show to users
+    if self.question_number == 0 : self.question_number = questions + 1 #Automatically count the numbers of question to show to users
+
+    # Check if the question is a boolean question and its its stricts
+    if(
+       self.question_type == self.QuestionTypes.TRUE_OR_FALSE and self.mistakes_to_ignore > 0
+    ):
+       self.is_strict = False
 
     # If the quiz if mark on check then make sure the answers and correct answer explanation is set
     if( 
@@ -252,26 +259,27 @@ class Comments(models.Model):
     user = models.ForeignKey('base.User', on_delete=models.CASCADE)
     body = models.CharField(max_length=300)
     quiz= models.ForeignKey('base.Quiz', on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now=True)
+    likes = models.ManyToManyField(User, related_name='comment_likes')
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.body[:50]
 
 class AttemptedQuizOfUser(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4)
-    quiz = models.ForeignKey('base.Quiz', on_delete=models.CASCADE)
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
     start_time = models.DateTimeField(auto_now_add=True)
     last_accessed_time = models.DateTimeField(auto_now=True, null=True,blank=True)
     is_completed = models.BooleanField(default=False)
     questions_answered_by_student = models.ManyToManyField('base.Question', related_name='attempted_quizzes') 
     current_question_index = models.PositiveIntegerField(default=0)
-    attempted_by = models.ForeignKey('base.StudentAccount', on_delete=models.CASCADE,default=None)
+    attempted_by = models.ForeignKey(StudentAccount, on_delete=models.CASCADE,default=None)
     answers = models.JSONField(default=list, null=True, blank=True)
     XP = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True,null=True, blank=True)
     
     def __str__(self):
-        return str("Soolaiman")
+        return self.attempted_by.user.username + ' answered ' + self.quiz.title
 
 class AnonymousUser(models.Model):
     anonymous_id = models.UUIDField(default=uuid.uuid4, primary_key=True)
@@ -334,24 +342,6 @@ class ScoreBoard(models.Model):
     def __str__(self) -> str:
        return self.user.user.username
 
-class Notifications(models.Model):
-    
-    class NotificationsType(models.TextChoices):
-        QUIZ_ALERT = 'quiz_alert',_('QUIZ_ALERT'),
-        LIKE = 'like',_('LIKE'),
-        COMMENT = 'comment',_('COMMENT'),
-        MESSAGE = 'message',_('MESSAGE'),
-        STUDENT =  'student',_('STUDENT'),
-        COMMUNITY_REQUEST =  'community_request',_('COMMUNITY_REQUEST'),
-    
-    message = models.CharField(max_length=255)
-    user = models.ForeignKey('base.User', on_delete=models.CASCADE)
-    type = models.TextField(choices=NotificationsType.choices, default=NotificationsType.MESSAGE)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return self.message[:50]
-
 class UploadImage(models.Model):
    image = models.ImageField(upload_to=upload_to)
 
@@ -401,6 +391,85 @@ class QuizReports(models.Model):
    def __str__(self):
       return self.issue[:50]
 
+class Notifications(models.Model):
+   
+   class NotificationType(models.TextChoices):
+      DEFAULT = 'default', _('DEFAULT')
+      COMMUNITY_REQUEST = 'community_request', _('COMMUNITY_REQUEST')
+      NEW_QUIZ_ALERT = 'new_quiz_alert', _('NEW_QUIZ_ALERT')
+      ACHIEVEMENT = 'achievement', _('ACHIEVEMENT')
+
+   id = models.UUIDField(default=uuid.uuid4, primary_key=True)
+   message = models.CharField(max_length=500)
+   path = models.URLField(null=True, blank=True)
+   user = models.ForeignKey(User, on_delete=models.CASCADE)
+   notification_type = models.CharField(choices=NotificationType.choices, default=NotificationType.DEFAULT, max_length=30)
+   is_read = models.BooleanField(default=False)
+   quiz=models.ForeignKey(Quiz, on_delete=models.CASCADE, null=True, blank=True, related_name='quiz')
+   user_requesting = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='user_requesting')
 
 
+   created_at = models.DateTimeField(auto_now_add=True)
+   updated_at = models.DateTimeField(auto_now=True)
+
+   def checkings(self):
+      if self.notification_type == self.NotificationType.DEFAULT and not self.message:
+         raise ValueError('Message is required')
+      
+      if self.notification_type == self.NotificationType.NEW_QUIZ_ALERT and not all([self.quiz, self.path]):
+         raise ValueError('Quiz and path are required')
+      
+      if self.notification_type == self.NotificationType.COMMUNITY_REQUEST and not self.user_requesting:
+         raise ValueError('User that request is required')
+      
+   def save(self, *arg, **kwarg):
+        self.checkings()
+        super().save(*arg, **kwarg)
+      
+class FeatureWaitList(models.Model):
+    
+    class Features(models.TextChoices):
+        IMAGE_FILTER = 'IMAGE_FILTER', _('IMAGE_FILTER')
+        AI_HELP = 'AI_HELP', _('AI_HELP')
+        QuestionGroup = "QuestionGroup", _("QuestionGroup")
+        Time = "Time",_('Time')
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    feature_name = models.CharField(max_length=50, choices=Features.choices)
+    
+    joined_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Functions to call
+    # Send Emails to users waiting for the update
+    
+    # Check if user is already on the wait-list
+    def check_user(self):
+        print(self.feature_name)
+        if FeatureWaitList.objects.filter(
+            Q(user__id=self.user.id) & 
+            Q(feature_name=self.feature_name)
+        ).exists():
+            raise ValidationError('You already joined the wait-list, you will be informed when this feature is available.')
+        
+        # Restricted to only super users.
+    def send_emails_to_users_on_waitList(self, feature_name: str, super_user: User | None):
+        
+        if super_user is None or super_user.is_superuser:
+            raise ValueError('Sorry! you can not access this endpoint. Its only available to Super Users')
+        
+        users_on_wait_list = FeatureWaitList.objects.filter(feature_name=feature_name).values_list('user__email')
+        
+        try:
+            send_email(
+            subject='Hooray! New Feature is available on Quizly.',
+            body='',
+            recipients=users_on_wait_list
+            )
+        except Exception as e:
+            raise str(e)
+        
+    def save(self, *arg, **kwarg):
+        self.check_user()
+        super().save(*arg, **kwarg)
 

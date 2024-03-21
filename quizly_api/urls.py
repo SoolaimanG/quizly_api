@@ -8,4 +8,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/',include('base.urls')),
     path('api/v1/community/',include('communites.urls')),
+    path('api/v1/surveys/', include('surveys.urls'))
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

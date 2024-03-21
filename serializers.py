@@ -1,8 +1,9 @@
 from rest_framework import serializers
-from base.models import ForgetPassword,Category, Quiz, Question, ObjectiveOptions ,TeachersAccount, StudentAccount, Comments, AttemptedQuizOfUser
+from base.models import ForgetPassword,Category, Quiz, Question, ObjectiveOptions ,TeachersAccount, StudentAccount, Comments, AttemptedQuizOfUser, Notifications, User
 from django.db.models import Q
 from base.helpers import string_mistakes
 from django.utils import timezone
+# from communites import serializers
 
 class UserSerializer(serializers.Serializer):
     username = serializers.CharField()
@@ -63,6 +64,7 @@ class QuizSerializer(serializers.ModelSerializer):
     total_questions = serializers.SerializerMethodField(read_only=True)
     comments_count = serializers.SerializerMethodField(read_only=True)
     has_user_started_quiz = serializers.BooleanField(read_only=True)
+    is_completed = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Quiz
@@ -80,8 +82,9 @@ class QuizSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         
-        # Include additional field manually
+
         data['has_user_started_quiz'] = self.context.get('has_user_started_quiz', False)
+        data['is_completed'] = self.context.get('is_completed', False)
         
         return data
 
@@ -223,8 +226,44 @@ class ResultSerializer(serializers.Serializer):
 
 class ImageSerializer(serializers.Serializer):
    image = serializers.ImageField()
+
+class RelatedQuizSerializer(serializers.Serializer):
+
+   quiz__id = serializers.UUIDField(read_only=True)
+   quiz__title = serializers.CharField()
+
+class RelatedQuizSerializerForTutor(serializers.Serializer):
+   id = serializers.UUIDField(read_only=True)
+   title = serializers.CharField()
+
+class PartialUserSerializer(serializers.ModelSerializer):
+   username = serializers.CharField()
+   profile_image = serializers.URLField( required=False)
+   id = serializers.UUIDField()
+
+   class Meta:
+      model = User
+      fields = ['profile_image', 'username', 'id', 'account_type']
+ 
+class PartialQuizSerializer(serializers.ModelSerializer):
+   title = serializers.CharField()
+   banner = serializers.URLField(required=False)
+   id = serializers.UUIDField()
+   host = HostDetails(read_only=True)
+
+   class Meta:
+      model = Quiz
+      fields = ['title', 'banner', 'id', 'host']
+ 
+class NotificationSerializer(serializers.ModelSerializer):
    
-    
+   user = PartialUserSerializer(read_only=True)
+   user_requesting = PartialUserSerializer(read_only=True)
+   quiz = PartialQuizSerializer(read_only=True)
+   
+   class Meta:
+      fields = '__all__'
+      model = Notifications
   
   
   
