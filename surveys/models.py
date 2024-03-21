@@ -3,6 +3,8 @@ from uuid import uuid4
 from django.utils.translation import gettext as _
 from base.models import User
 
+from django.db.models import Q
+
 
 class EndScreenSocialMedia(models.Model):
     
@@ -46,11 +48,13 @@ class Surveys(models.Model):
         return self.name
 
 class Background(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     background_color = models.CharField(max_length=50, null=True)
     background_image = models.URLField(null=True)
     survey_block = models.ForeignKey('SurveyBlockType', on_delete=models.CASCADE, null=True, blank=True)
 
 class PhoneNumbers(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     check_number = models.BooleanField(default=False)
     format_number = models.BooleanField(default=True)
     placeholder = models.CharField(max_length=500, default='Placeholder')
@@ -92,6 +96,7 @@ class Date(models.Model):
 
    
 
+   id = models.UUIDField(default=uuid4, primary_key=True)
    date = models.DateField(null=True, blank=True)
    label = models.TextField(max_length=1000, null=True, blank=True)
    seperator = models.TextField(choices=Seperator.choices, default=Seperator.SLASH, max_length=30)
@@ -102,20 +107,24 @@ class Date(models.Model):
     country = models.CharField(max_length=100, null=True, blank=True)
     
 class Number(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     min = models.PositiveIntegerField(null=True, blank=True)
     max = models.PositiveIntegerField(null=True, blank=True)
     
 class ShortText(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     max_character = models.PositiveIntegerField(default=100)
     label = models.TextField(max_length=1000, null=True, blank=True)
     place_holder = models.CharField(max_length=500, default='PlaceHolder')
 
 class LongText(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     max_character = models.PositiveIntegerField(default=100)
     label = models.TextField(max_length=1000, null=True, blank=True)
     place_holder = models.CharField(max_length=500, default='PlaceHolder')
     
 class DropDown(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     label = models.TextField(max_length=1000, null=True, blank=True)
     alphabetically = models.BooleanField(default=False)
     multiple_selection = models.BooleanField(default=True)
@@ -130,27 +139,33 @@ class DropDownOpions(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 class Rating(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     ratings_length = models.PositiveIntegerField(default=5)
     label = models.TextField(max_length=1000, null=True, blank=True)
     
 class Choices(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     multiple_selection = models.BooleanField(default=True)
     vertical_alignment = models.BooleanField(default=False)
     label = models.TextField(max_length=1000, null=True, blank=True)
     randomize = models.BooleanField(default=False)
 
 class Email(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     check_email = models.BooleanField(default=False)
     label = models.TextField(max_length=1000, null=True, blank=True)
     
 class YesNo(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     allow_reselect = models.BooleanField(default=True)
     
 class Website(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     accept_url_with = models.TextField(null=True, blank=True)
     label = models.TextField(max_length=1000, null=True, blank=True)
     
 class RedirectWithUrl(models.Model):
+    id = models.UUIDField(default=uuid4, primary_key=True)
     url = models.URLField()
     message = models.TextField(max_length=1000, null=True, blank=True, default="Redirect to url")
     custom_html = models.TextField(max_length=10000, null=True, blank=True)
@@ -160,7 +175,7 @@ class RedirectWithUrl(models.Model):
 
 
 class WelcomeScreen(models.Model):
-    
+    id = models.UUIDField(default=uuid4, primary_key=True)
     message = models.CharField(max_length=500)
     label = models.TextField(max_length=2000, null=True)
     have_continue_button = models.BooleanField(default=True)
@@ -277,8 +292,10 @@ class SurveyBlockType(models.Model):
         return self.survey.name + ' ' + self.block_type
     
     # def correct_all_index(self):
-    #     all_blocks_gt_current_index = SurveyBlockType.objects.filter(survey__id=self.survey.id, index__gt=self.index)
-    #     print(all_blocks_gt_current_index)
+    #     all_blocks_gt_current_index = SurveyBlockType.objects.filter(
+    #       Q(survey__id=self.survey.id) & Q(index__gt=self.index) 
+    #     )
+    #     # print(all_blocks_gt_current_index)
     #     for i in all_blocks_gt_current_index:
     #         all_blocks_gt_current_index[i].index += 1
     #         all_blocks_gt_current_index[i].save()

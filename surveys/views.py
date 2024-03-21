@@ -260,7 +260,7 @@ def get_survey_details(request, id:str):
    try:
       user:User = request.user
       survey = get_object_or_404(Surveys, id=id, host__id=user.id)
-      survey_blocks = SurveyBlockType.objects.filter(survey__id=survey.id).all().order_by('number')
+      survey_blocks = SurveyBlockType.objects.filter(survey__id=survey.id).all().order_by('index')
       
       survey_serializer = SurveySerializer(survey)
       block_serializer = SurveyBlockSerializer(survey_blocks, many=True)
@@ -350,6 +350,8 @@ class SurveysAPIVIEW(APIView):
 
 
 @permission_classes([IsAuthenticated])
+# The `SurveyBlocks` class in Python defines methods for handling various actions related to survey
+# blocks, including adding, duplicating, deleting, and updating block data.
 class SurveyBlocks(APIView):
    def post(self, request):
       try:
@@ -386,24 +388,28 @@ class SurveyBlocks(APIView):
          
          if action == 'DUPLICATE':
             block_id = data['block_id']
+            id = data['id']
             block_modal = block_models[block_type]
+            
+            survey_block = get_object_or_404(SurveyBlockType, id=id, block_type=block_type)
+            print(survey_block)
+            
             copied_block = block_modal.objects.filter(id=block_id)
-            
             new_block = copied_block.first()
-            new_block.id = copied_block.count() + 1
-   
+            new_block.id = uuid4()
+            new_block.save()
             
-
-            # Create the new survey block
-            survey_blocks = SurveyBlockType.objects.create(
+            survey_block = SurveyBlockType(
             survey=survey,
-            question=dummy_questions[block_type],
-            label='This is a label and can be changed.',
+            is_required=survey_block.is_required,
+            question= survey_block.question,
+            label=survey_block.label,
+            index = survey_block.index + 1,
             block_type=block_type,
-            **{block_models_snake_case[block_type]:new_block}
+            **{block_models_snake_case[block_type]: new_block}
          )
          
-            survey_blocks.save()
+            survey_block.save()
          
          if action == 'ADD_CHOICE':
             choices = data['choices']
@@ -458,7 +464,9 @@ class SurveyBlocks(APIView):
             
             picture_choice.save()
                
-            
+         # The above code is a Python if statement checking if the variable `action` is equal to the
+         # string 'CHANGE_BLOCK'. If the condition is true, the code block denoted by the triple hash
+         # symbols (`
          
          return Response({'data':{},'message':'OK'},status=HTTP_200_OK)
          
@@ -502,14 +510,15 @@ class SurveyBlocks(APIView):
          
          data = request.data
          block_type = data['block_type']
-         block_id = data['block_id']
+         sub_block_id = data['sub_block_id']
          action_type = data.get('action_type', '')
-         survey_block_id = data['survey_block_id']
+         survey_id = data['survey_id']
+         block_id = data.get('block_id', "")
          user:User = request.user
          
          survey_actions = ['is_visible', 'is_required', 'header_or_label', 'remove_choice', 'edit_picture_image', 'add_image_to_picture_choice', 'remove_picture_choice']
          
-         survey = get_object_or_404(Surveys, id=survey_block_id)
+         survey = get_object_or_404(Surveys, id=survey_id)
          
          survey.am_i_d_owner(user)
       
@@ -519,8 +528,8 @@ class SurveyBlocks(APIView):
          
          
          # This are the actions that update the current block data 
-         if survey_block_id:
-            current_block = SurveyBlockType.objects.filter(id=survey_block_id).first()
+         if block_id:
+            current_block = SurveyBlockType.objects.filter(id=block_id).first()
          
          if action_type == 'is_required':
             current_block.is_required = data['is_required']
@@ -559,7 +568,6 @@ class SurveyBlocks(APIView):
                return Response({'data':{}, 'message': str(data.errors)}, status=HTTP_400_BAD_REQUEST)
             
          if action_type == 'add_image_to_picture_choice':
-            print('Ran')
             url = data['url']
             image = data['image']
             id = data['id']
@@ -586,7 +594,7 @@ class SurveyBlocks(APIView):
          if action_type in survey_actions:
             return Response({'data':{},'message':'OK'}, status=HTTP_200_OK)
          
-         instance = get_object_or_404(block_models[block_type], id=block_id)
+         instance = get_object_or_404(block_models[block_type], id=sub_block_id)
       
          serializer = block_serializer[block_type](instance=instance, data=data, partial=True)
          
@@ -599,5 +607,79 @@ class SurveyBlocks(APIView):
          
       except Exception as e:
          return Response({'data':{},'message': str(e)}, status=HTTP_500_INTERNAL_SERVER_ERROR)
+ 
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def change_block_to_preferred(request, survey_id: str):
+   try:
+      # The code snippet is written in Python and appears to be part of a web application or API. It
+      # defines a variable `user` as the current user making a request. It then retrieves a survey
+      # object with a specific `id` from the database using the `get_object_or_404` function. Finally,
+      # it calls a method `am_i_d_owner` on the `survey` object, passing the `user` as an argument.
+      # The purpose of the `am_i_d_owner` method is to check if the user is the owner of the survey.
+      user:User = request.user
+      data = request.data
       
+      """
+         old block is a dict which consist of id, block_type, index
+         new_block is a dict which consist of id, block_type
+      """
+      old_block = data['old_block']
+      new_block = data['new_block']
+      
+      
+     # The below code is checking if the 'block_type' key in the dictionaries `old_block` and
+     # `new_block` is not present in the `block_models_snake_case` list. If either of the block types
+     # is not found in the list, it returns a response with an empty data object and an empty message
+     # string, indicating a bad request with a status code of 400.
+      if old_block['block_type'] not in block_models_snake_case or new_block['block_type'] not in block_models_snake_case:
+         return Response({'data':{},'message':''}, status=HTTP_400_BAD_REQUEST)
+      
+      survey = get_object_or_404(Surveys, id=survey_id)
+      
+      survey.am_i_d_owner(user)
+      
+      survey_block = SurveyBlockType.objects.filter(block_type=old_block['block_type'], id=old_block['id']).first()
+      
+      
+
+      # The above code is written in Python and it is using Django's ORM to delete a SurveyBlockType
+      # object from the database based on the provided ID from the `old_block` dictionary. It first
+      # filters the SurveyBlockType objects by the ID and then deletes the first object that matches
+      # the filter criteria.
+      SurveyBlockType.objects.filter(id=old_block['id']).first().delete()
+      
+      # The code snippet is using the `getattr()` function in Python to dynamically access an
+      # attribute of an object `survey_block` based on the value of
+      # `block_models_snake_case[old_block['block_type']]`. It then retrieves the corresponding model
+      # from `block_models` based on `old_block['block_type']`, and deletes the object from the
+      # database using the `delete()` method.
+      related_block = getattr(survey_block, block_models_snake_case[old_block['block_type']])
+      
+      block_models[old_block['block_type']].objects.filter(id=related_block.id).first().delete()
+      
+      block_model = block_models[new_block['block_type']]
+      new = block_model.objects.create()
+      
+      # The above code is creating a new `SurveyBlockType` object and replacing the old block with
+      # this new block. It is setting the `survey`, `question`, `index`, `block_type`, and additional
+      # attributes based on the values from `new_block` and `block_models_snake_case`. Finally, it
+      # saves the `survey_block` object.
+      # Create a new block and replace the old block
+      survey_block = SurveyBlockType(
+         survey=survey,
+         question=dummy_questions[new_block['block_type']],
+         index = old_block['index'],
+         block_type=new_block['block_type'],
+         **{block_models_snake_case[new_block['block_type']]: new}
+      )
+      
+      survey_block.save()
+      
+      return Response({'data':{},'message':'OK'}, status=HTTP_200_OK)
+      
+      
+   except Exception as e:
+      return Response({'data':{},'message':str(e)}, status=HTTP_500_INTERNAL_SERVER_ERROR)
       

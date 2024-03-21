@@ -1479,7 +1479,6 @@ class FeatureWaitListAPI(APIView):
             user: User = request.user
             data = request.data
             feature_name = data['feature_name']
-            print(feature_name)
 
             if feature_name not in FeatureWaitList.Features.labels:
                 return Response({'data':{}, 'message':'BAD REQUEST'}, status=HTTP_400_BAD_REQUEST)
